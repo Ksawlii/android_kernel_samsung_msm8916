@@ -599,8 +599,6 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 			   daddr, saddr, 0, 0, sk->sk_uid);
 
 	if (!hdrincl) {
-		rfv.iov = msg->msg_iov;
-		rfv.hlen = 0;
 
 		err = raw_probe_proto_opt(&rfv, &fl4);
 		if (err)
