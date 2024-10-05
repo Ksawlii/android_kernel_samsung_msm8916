@@ -168,6 +168,7 @@ struct worker_pool {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 	struct idr		worker_idr;	/* M: worker IDs */
 >>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
@@ -182,6 +183,9 @@ struct worker_pool {
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 =======
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
+=======
+	struct idr		worker_idr;	/* MG: worker IDs and iteration */
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 
 <<<<<<< HEAD
 	struct ida		worker_ida;	/* worker IDs for task name */
@@ -409,11 +413,15 @@ static void copy_workqueue_attrs(struct workqueue_attrs *to,
 =======
 #define for_each_pool_worker(worker, wi, pool)				\
 	idr_for_each_entry(&(pool)->worker_idr, (worker), (wi))		\
+<<<<<<< HEAD
 >>>>>>> parent of 40b1c5ed2b9 (workqueue: separate iteration role from worker_idr)
 		if (({ lockdep_assert_held(&pool->manager_mutex); false; })) { } \
 =======
 #define for_each_pool_worker(worker, wi, pool)				\
 	idr_for_each_entry(&(pool)->worker_idr, (worker), (wi))		\
+		if (({ assert_manager_or_pool_lock((pool)); false; })) { } \
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
+=======
 		if (({ assert_manager_or_pool_lock((pool)); false; })) { } \
 >>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 		else
@@ -1806,6 +1814,9 @@ static struct worker *create_worker(struct worker_pool *pool)
 	 * without installing the pointer.
 	 */
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	idr_preload(GFP_KERNEL);
 	spin_lock_irq(&pool->lock);
 
@@ -1813,10 +1824,13 @@ static struct worker *create_worker(struct worker_pool *pool)
 
 	spin_unlock_irq(&pool->lock);
 	idr_preload_end();
+<<<<<<< HEAD
 >>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 =======
 	id = idr_alloc(&pool->worker_idr, NULL, 0, 0, GFP_KERNEL);
 >>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
+=======
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	if (id < 0)
 		goto fail;
 
@@ -1861,7 +1875,9 @@ static struct worker *create_worker(struct worker_pool *pool)
 <<<<<<< HEAD
 =======
 	/* successful, commit the pointer to idr */
+	spin_lock_irq(&pool->lock);
 	idr_replace(&pool->worker_idr, worker, worker->id);
+<<<<<<< HEAD
 <<<<<<< HEAD
 >>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	/* successful, attach the worker to the pool */
@@ -1874,24 +1890,33 @@ static struct worker *create_worker(struct worker_pool *pool)
 >>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 =======
 >>>>>>> parent of 40b1c5ed2b9 (workqueue: separate iteration role from worker_idr)
+=======
+	spin_unlock_irq(&pool->lock);
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 
 	return worker;
 
 fail:
 <<<<<<< HEAD
+<<<<<<< HEAD
 	if (id >= 0)
 <<<<<<< HEAD
 		ida_simple_remove(&pool->worker_ida, id);
 =======
+=======
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	if (id >= 0) {
 		spin_lock_irq(&pool->lock);
 		idr_remove(&pool->worker_idr, id);
 		spin_unlock_irq(&pool->lock);
 	}
+<<<<<<< HEAD
 >>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 =======
 		idr_remove(&pool->worker_idr, id);
 >>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
+=======
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	kfree(worker);
 	return NULL;
 }
