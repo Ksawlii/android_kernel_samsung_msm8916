@@ -166,17 +166,24 @@ struct worker_pool {
 	struct mutex		manager_mutex;	/* manager exclusion */
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+	struct idr		worker_idr;	/* M: worker IDs */
+>>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	struct list_head	workers;	/* M: attached workers */
 	struct completion	*detach_completion; /* all workers detached */
 =======
 	struct idr		worker_idr;	/* M: worker IDs and iteration */
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 
+<<<<<<< HEAD
 	struct ida		worker_ida;	/* worker IDs for task name */
 =======
 	struct idr		worker_idr;	/* MG: worker IDs and iteration */
 >>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 
+=======
+>>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	struct workqueue_attrs	*attrs;		/* I: worker attributes */
 	struct hlist_node	hash_node;	/* PL: unbound_pool_hash node */
 	int			refcnt;		/* PL: refcnt for unbound pools */
@@ -1739,6 +1746,7 @@ static void worker_detach_from_pool(struct worker *worker,
 	struct completion *detach_completion = NULL;
 
 	mutex_lock(&pool->manager_mutex);
+	idr_remove(&pool->worker_idr, worker->id);
 	list_del(&worker->node);
 	if (list_empty(&pool->workers))
 		detach_completion = pool->detach_completion;
@@ -1773,13 +1781,17 @@ static struct worker *create_worker(struct worker_pool *pool)
 	lockdep_assert_held(&pool->manager_mutex);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	/* ID is needed to determine kthread name */
 	id = ida_simple_get(&pool->worker_ida, 0, 0, GFP_KERNEL);
 =======
+=======
+>>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	/*
 	 * ID is needed to determine kthread name.  Allocate ID first
 	 * without installing the pointer.
 	 */
+<<<<<<< HEAD
 	idr_preload(GFP_KERNEL);
 	spin_lock_irq(&pool->lock);
 
@@ -1788,6 +1800,9 @@ static struct worker *create_worker(struct worker_pool *pool)
 	spin_unlock_irq(&pool->lock);
 	idr_preload_end();
 >>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
+=======
+	id = idr_alloc(&pool->worker_idr, NULL, 0, 0, GFP_KERNEL);
+>>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	if (id < 0)
 		goto fail;
 
@@ -1829,6 +1844,11 @@ static struct worker *create_worker(struct worker_pool *pool)
 		worker->flags |= WORKER_UNBOUND;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+	/* successful, commit the pointer to idr */
+	idr_replace(&pool->worker_idr, worker, worker->id);
+>>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	/* successful, attach the worker to the pool */
 	list_add_tail(&worker->node, &pool->workers);
 =======
@@ -1843,6 +1863,7 @@ static struct worker *create_worker(struct worker_pool *pool)
 fail:
 <<<<<<< HEAD
 	if (id >= 0)
+<<<<<<< HEAD
 		ida_simple_remove(&pool->worker_ida, id);
 =======
 	if (id >= 0) {
@@ -1851,6 +1872,9 @@ fail:
 		spin_unlock_irq(&pool->lock);
 	}
 >>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
+=======
+		idr_remove(&pool->worker_idr, id);
+>>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	kfree(worker);
 	return NULL;
 }
@@ -2369,7 +2393,6 @@ woke_up:
 <<<<<<< HEAD
 
 		set_task_comm(worker->task, "kworker/dying");
-		ida_simple_remove(&pool->worker_ida, worker->id);
 		worker_detach_from_pool(worker, pool);
 		kfree(worker);
 =======
@@ -3680,9 +3703,9 @@ static int init_worker_pool(struct worker_pool *pool)
 
 	mutex_init(&pool->manager_arb);
 	mutex_init(&pool->manager_mutex);
+	idr_init(&pool->worker_idr);
 	INIT_LIST_HEAD(&pool->workers);
 
-	ida_init(&pool->worker_ida);
 	INIT_HLIST_NODE(&pool->hash_node);
 	pool->refcnt = 1;
 
@@ -3697,7 +3720,7 @@ static void rcu_free_pool(struct rcu_head *rcu)
 {
 	struct worker_pool *pool = container_of(rcu, struct worker_pool, rcu);
 
-	ida_destroy(&pool->worker_ida);
+	idr_destroy(&pool->worker_idr);
 	free_workqueue_attrs(pool->attrs);
 	kfree(pool);
 }
