@@ -794,27 +794,6 @@ dec_cumulative_runnable_avg(struct rq *rq, struct task_struct *p)
 	BUG_ON((s64)rq->cumulative_runnable_avg < 0);
 }
 
-#define SCHED_HIGH_IRQ_TIMEOUT 3
-static inline u64 sched_irqload(int cpu)
-{
-	struct rq *rq = cpu_rq(cpu);
-	s64 delta;
-
-	delta = get_jiffies_64() - rq->irqload_ts;
-	BUG_ON(delta < 0);
-
-	if (delta < SCHED_HIGH_IRQ_TIMEOUT)
-		return rq->avg_irqload;
-	else
-		return 0;
-}
-
-#define SCHED_HIGH_IRQ_NS (10 * NSEC_PER_MSEC)
-static inline int sched_cpu_high_irqload(int cpu)
-{
-	return sched_irqload(cpu) >= SCHED_HIGH_IRQ_NS;
-}
-
 #else	/* CONFIG_SCHED_HMP */
 
 static inline int pct_task_load(struct task_struct *p) { return 0; }
@@ -848,8 +827,6 @@ static inline unsigned int nr_eligible_big_tasks(int cpu)
 {
 	return 0;
 }
-
-static inline int sched_cpu_high_irqload(int cpu) { return 0; }
 
 #endif	/* CONFIG_SCHED_HMP */
 
@@ -1138,10 +1115,9 @@ static inline void finish_lock_switch(struct rq *rq, struct task_struct *prev)
 	 * After ->on_cpu is cleared, the task can be moved to a different CPU.
 	 * We must ensure this doesn't happen until the switch is completely
 	 * finished.
-	 *
-	 * Pairs with the control dependency and rmb in try_to_wake_up().
 	 */
-	smp_store_release(&prev->on_cpu, 0);
+	smp_wmb();
+	prev->on_cpu = 0;
 #endif
 #ifdef CONFIG_DEBUG_SPINLOCK
 	/* this is a valid case when another task releases the spinlock */
