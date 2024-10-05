@@ -174,10 +174,13 @@ struct worker_pool {
 	struct list_head	workers;	/* M: attached workers */
 =======
 	struct idr		worker_idr;	/* M: worker IDs and iteration */
+<<<<<<< HEAD
 >>>>>>> parent of 40b1c5ed2b9 (workqueue: separate iteration role from worker_idr)
 	struct completion	*detach_completion; /* all workers detached */
 =======
 	struct idr		worker_idr;	/* M: worker IDs and iteration */
+>>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
+=======
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 
 <<<<<<< HEAD
@@ -1741,6 +1744,7 @@ static struct worker *alloc_worker(void)
 
 /**
 <<<<<<< HEAD
+<<<<<<< HEAD
  * worker_detach_from_pool() - detach a worker from its pool
  * @worker: worker which is attached to its pool
  * @pool: the pool @worker is attached to
@@ -1765,6 +1769,8 @@ static void worker_detach_from_pool(struct worker *worker,
 }
 
 /**
+=======
+>>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 =======
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
  * create_worker - create a new workqueue worker
@@ -1956,6 +1962,12 @@ static void destroy_worker(struct worker *worker)
 		pool->nr_workers--;
 	if (worker->flags & WORKER_IDLE)
 		pool->nr_idle--;
+
+	/*
+	 * Once WORKER_DIE is set, the kworker may destroy itself at any
+	 * point.  Pin to ensure the task stays until we're done with it.
+	 */
+	get_task_struct(worker->task);
 
 	/*
 	 * Once WORKER_DIE is set, the kworker may destroy itself at any
@@ -2402,10 +2414,13 @@ woke_up:
 		WARN_ON_ONCE(!list_empty(&worker->entry));
 		worker->task->flags &= ~PF_WQ_WORKER;
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 		set_task_comm(worker->task, "kworker/dying");
 		worker_detach_from_pool(worker, pool);
 		kfree(worker);
+=======
+>>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 =======
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 		return 0;
@@ -3780,10 +3795,13 @@ static void put_unbound_pool(struct worker_pool *pool)
 
 	spin_unlock_irq(&pool->lock);
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 	mutex_lock(&pool->manager_mutex);
 	if (!idr_is_empty(&pool->worker_idr))
 		pool->detach_completion = &detach_completion;
+=======
+>>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 =======
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 	mutex_unlock(&pool->manager_mutex);
