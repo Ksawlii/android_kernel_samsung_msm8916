@@ -124,7 +124,8 @@ enum {
  *    cpu or grabbing pool->lock is enough for read access.  If
  *    POOL_DISASSOCIATED is set, it's identical to L.
  *
- * M: pool->manager_mutex protected.
+ * MG: pool->manager_mutex and pool->lock protected.  Writes require both
+ *     locks.  Reads can happen under either lock.
  *
  * PL: wq_pool_mutex protected.
  *
@@ -164,6 +165,7 @@ struct worker_pool {
 	struct mutex		manager_arb;	/* manager arbitration */
 	struct mutex		manager_mutex;	/* manager exclusion */
 <<<<<<< HEAD
+<<<<<<< HEAD
 	struct list_head	workers;	/* M: attached workers */
 	struct completion	*detach_completion; /* all workers detached */
 =======
@@ -171,6 +173,9 @@ struct worker_pool {
 >>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 
 	struct ida		worker_ida;	/* worker IDs for task name */
+=======
+	struct idr		worker_idr;	/* MG: worker IDs and iteration */
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 
 	struct workqueue_attrs	*attrs;		/* I: worker attributes */
 	struct hlist_node	hash_node;	/* PL: unbound_pool_hash node */
@@ -340,6 +345,16 @@ static void copy_workqueue_attrs(struct workqueue_attrs *to,
 			   lockdep_is_held(&wq->mutex),			\
 			   "sched RCU or wq->mutex should be held")
 
+#ifdef CONFIG_LOCKDEP
+#define assert_manager_or_pool_lock(pool)				\
+	WARN_ONCE(debug_locks &&					\
+		  !lockdep_is_held(&(pool)->manager_mutex) &&		\
+		  !lockdep_is_held(&(pool)->lock),			\
+		  "pool->manager_mutex or ->lock should be held")
+#else
+#define assert_manager_or_pool_lock(pool)	do { } while (0)
+#endif
+
 #define for_each_cpu_worker_pool(pool, cpu)				\
 	for ((pool) = &per_cpu(cpu_worker_pools, cpu)[0];		\
 	     (pool) < &per_cpu(cpu_worker_pools, cpu)[NR_STD_WORKER_POOLS]; \
@@ -367,14 +382,20 @@ static void copy_workqueue_attrs(struct workqueue_attrs *to,
  * @worker: iteration cursor
  * @pool: worker_pool to iterate workers of
  *
- * This must be called with @pool->manager_mutex.
+ * This must be called with either @pool->manager_mutex or ->lock held.
  *
  * The if/else clause exists only for the lockdep assertion and can be
  * ignored.
  */
+<<<<<<< HEAD
 #define for_each_pool_worker(worker, pool)				\
 	list_for_each_entry((worker), &(pool)->workers, node)		\
 		if (({ lockdep_assert_held(&pool->manager_mutex); false; })) { } \
+=======
+#define for_each_pool_worker(worker, wi, pool)				\
+	idr_for_each_entry(&(pool)->worker_idr, (worker), (wi))		\
+		if (({ assert_manager_or_pool_lock((pool)); false; })) { } \
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 		else
 
 /**
@@ -1758,8 +1779,22 @@ static struct worker *create_worker(struct worker_pool *pool)
 
 	lockdep_assert_held(&pool->manager_mutex);
 
+<<<<<<< HEAD
 	/* ID is needed to determine kthread name */
 	id = ida_simple_get(&pool->worker_ida, 0, 0, GFP_KERNEL);
+=======
+	/*
+	 * ID is needed to determine kthread name.  Allocate ID first
+	 * without installing the pointer.
+	 */
+	idr_preload(GFP_KERNEL);
+	spin_lock_irq(&pool->lock);
+
+	id = idr_alloc(&pool->worker_idr, NULL, 0, 0, GFP_NOWAIT);
+
+	spin_unlock_irq(&pool->lock);
+	idr_preload_end();
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	if (id < 0)
 		goto fail;
 
@@ -1800,14 +1835,29 @@ static struct worker *create_worker(struct worker_pool *pool)
 	if (pool->flags & POOL_DISASSOCIATED)
 		worker->flags |= WORKER_UNBOUND;
 
+<<<<<<< HEAD
 	/* successful, attach the worker to the pool */
 	list_add_tail(&worker->node, &pool->workers);
+=======
+	/* successful, commit the pointer to idr */
+	spin_lock_irq(&pool->lock);
+	idr_replace(&pool->worker_idr, worker, worker->id);
+	spin_unlock_irq(&pool->lock);
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 
 	return worker;
 
 fail:
+<<<<<<< HEAD
 	if (id >= 0)
 		ida_simple_remove(&pool->worker_ida, id);
+=======
+	if (id >= 0) {
+		spin_lock_irq(&pool->lock);
+		idr_remove(&pool->worker_idr, id);
+		spin_unlock_irq(&pool->lock);
+	}
+>>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	kfree(worker);
 	return NULL;
 }
