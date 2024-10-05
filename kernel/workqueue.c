@@ -164,37 +164,8 @@ struct worker_pool {
 	/* see manage_workers() for details on the two manager mutexes */
 	struct mutex		manager_arb;	/* manager arbitration */
 	struct mutex		manager_mutex;	/* manager exclusion */
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-	struct idr		worker_idr;	/* M: worker IDs */
->>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
-	struct list_head	workers;	/* M: attached workers */
-=======
-	struct idr		worker_idr;	/* M: worker IDs and iteration */
-<<<<<<< HEAD
->>>>>>> parent of 40b1c5ed2b9 (workqueue: separate iteration role from worker_idr)
-	struct completion	*detach_completion; /* all workers detached */
-=======
-	struct idr		worker_idr;	/* M: worker IDs and iteration */
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
-=======
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
-=======
 	struct idr		worker_idr;	/* MG: worker IDs and iteration */
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 
-<<<<<<< HEAD
-	struct ida		worker_ida;	/* worker IDs for task name */
-=======
-	struct idr		worker_idr;	/* MG: worker IDs and iteration */
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
-
-=======
->>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	struct workqueue_attrs	*attrs;		/* I: worker attributes */
 	struct hlist_node	hash_node;	/* PL: unbound_pool_hash node */
 	int			refcnt;		/* PL: refcnt for unbound pools */
@@ -407,24 +378,9 @@ static void copy_workqueue_attrs(struct workqueue_attrs *to,
  * The if/else clause exists only for the lockdep assertion and can be
  * ignored.
  */
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define for_each_pool_worker(worker, pool)				\
-	list_for_each_entry((worker), &(pool)->workers, node)		\
-=======
-#define for_each_pool_worker(worker, wi, pool)				\
-	idr_for_each_entry(&(pool)->worker_idr, (worker), (wi))		\
-<<<<<<< HEAD
->>>>>>> parent of 40b1c5ed2b9 (workqueue: separate iteration role from worker_idr)
-		if (({ lockdep_assert_held(&pool->manager_mutex); false; })) { } \
-=======
 #define for_each_pool_worker(worker, wi, pool)				\
 	idr_for_each_entry(&(pool)->worker_idr, (worker), (wi))		\
 		if (({ assert_manager_or_pool_lock((pool)); false; })) { } \
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
-=======
-		if (({ assert_manager_or_pool_lock((pool)); false; })) { } \
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 		else
 
 /**
@@ -1387,7 +1343,7 @@ static void __queue_work(int cpu, struct workqueue_struct *wq,
 
 	debug_work_activate(work);
 
-	/* if draining, only works from the same workqueue are allowed */
+	/* if dying, only works from the same workqueue are allowed */
 	if (unlikely(wq->flags & __WQ_DRAINING) &&
 	    WARN_ON_ONCE(!is_chained_work(wq)))
 		return;
@@ -1748,36 +1704,6 @@ static struct worker *alloc_worker(void)
 }
 
 /**
-<<<<<<< HEAD
-<<<<<<< HEAD
- * worker_detach_from_pool() - detach a worker from its pool
- * @worker: worker which is attached to its pool
- * @pool: the pool @worker is attached to
- *
- * Undo the attaching which had been done in create_worker().  The caller
- * worker shouldn't access to the pool after detached except it has other
- * reference to the pool.
- */
-static void worker_detach_from_pool(struct worker *worker,
-				    struct worker_pool *pool)
-{
-	struct completion *detach_completion = NULL;
-
-	mutex_lock(&pool->manager_mutex);
-	idr_remove(&pool->worker_idr, worker->id);
-	if (idr_is_empty(&pool->worker_idr))
-		detach_completion = pool->detach_completion;
-	mutex_unlock(&pool->manager_mutex);
-
-	if (detach_completion)
-		complete(detach_completion);
-}
-
-/**
-=======
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
-=======
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
  * create_worker - create a new workqueue worker
  * @pool: pool the new worker will belong to
  *
@@ -1799,21 +1725,10 @@ static struct worker *create_worker(struct worker_pool *pool)
 
 	lockdep_assert_held(&pool->manager_mutex);
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-	/* ID is needed to determine kthread name */
-	id = ida_simple_get(&pool->worker_ida, 0, 0, GFP_KERNEL);
-=======
-=======
->>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
 	/*
 	 * ID is needed to determine kthread name.  Allocate ID first
 	 * without installing the pointer.
 	 */
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	idr_preload(GFP_KERNEL);
 	spin_lock_irq(&pool->lock);
 
@@ -1821,13 +1736,6 @@ static struct worker *create_worker(struct worker_pool *pool)
 
 	spin_unlock_irq(&pool->lock);
 	idr_preload_end();
-<<<<<<< HEAD
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
-=======
-	id = idr_alloc(&pool->worker_idr, NULL, 0, 0, GFP_KERNEL);
->>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
-=======
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	if (id < 0)
 		goto fail;
 
@@ -1849,16 +1757,15 @@ static struct worker *create_worker(struct worker_pool *pool)
 	if (IS_ERR(worker->task))
 		goto fail;
 
-	set_user_nice(worker->task, pool->attrs->nice);
-
-	/* prevent userland from meddling with cpumask of workqueue workers */
-	worker->task->flags |= PF_NO_SETAFFINITY;
-
 	/*
 	 * set_cpus_allowed_ptr() will fail if the cpumask doesn't have any
 	 * online CPUs.  It'll be re-applied when any of the CPUs come up.
 	 */
+	set_user_nice(worker->task, pool->attrs->nice);
 	set_cpus_allowed_ptr(worker->task, pool->attrs->cpumask);
+
+	/* prevent userland from meddling with cpumask of workqueue workers */
+	worker->task->flags |= PF_NO_SETAFFINITY;
 
 	/*
 	 * The caller is responsible for ensuring %POOL_DISASSOCIATED
@@ -1868,52 +1775,19 @@ static struct worker *create_worker(struct worker_pool *pool)
 	if (pool->flags & POOL_DISASSOCIATED)
 		worker->flags |= WORKER_UNBOUND;
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-	/* successful, commit the pointer to idr */
-	spin_lock_irq(&pool->lock);
-	idr_replace(&pool->worker_idr, worker, worker->id);
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
-	/* successful, attach the worker to the pool */
-	list_add_tail(&worker->node, &pool->workers);
-=======
 	/* successful, commit the pointer to idr */
 	spin_lock_irq(&pool->lock);
 	idr_replace(&pool->worker_idr, worker, worker->id);
 	spin_unlock_irq(&pool->lock);
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
-=======
->>>>>>> parent of 40b1c5ed2b9 (workqueue: separate iteration role from worker_idr)
-=======
-	spin_unlock_irq(&pool->lock);
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 
 	return worker;
 
 fail:
-<<<<<<< HEAD
-<<<<<<< HEAD
-	if (id >= 0)
-<<<<<<< HEAD
-		ida_simple_remove(&pool->worker_ida, id);
-=======
-=======
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	if (id >= 0) {
 		spin_lock_irq(&pool->lock);
 		idr_remove(&pool->worker_idr, id);
 		spin_unlock_irq(&pool->lock);
 	}
-<<<<<<< HEAD
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
-=======
-		idr_remove(&pool->worker_idr, id);
->>>>>>> parent of 708a1fd2cd0 (workqueue: convert worker_idr to worker_ida)
-=======
->>>>>>> parent of 2e1656c1041 (workqueue: use manager lock only to protect worker_idr)
 	kfree(worker);
 	return NULL;
 }
@@ -1984,15 +1858,6 @@ static void destroy_worker(struct worker *worker)
 		pool->nr_workers--;
 	if (worker->flags & WORKER_IDLE)
 		pool->nr_idle--;
-<<<<<<< HEAD
-
-	/*
-	 * Once WORKER_DIE is set, the kworker may destroy itself at any
-	 * point.  Pin to ensure the task stays until we're done with it.
-	 */
-	get_task_struct(worker->task);
-=======
->>>>>>> parent of f35de502709 (workqueue: destroy_worker() should destroy idle workers only)
 
 	/*
 	 * Once WORKER_DIE is set, the kworker may destroy itself at any
@@ -2433,16 +2298,6 @@ woke_up:
 		spin_unlock_irq(&pool->lock);
 		WARN_ON_ONCE(!list_empty(&worker->entry));
 		worker->task->flags &= ~PF_WQ_WORKER;
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-		set_task_comm(worker->task, "kworker/dying");
-		worker_detach_from_pool(worker, pool);
-		kfree(worker);
-=======
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
-=======
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 		return 0;
 	}
 
@@ -3441,7 +3296,7 @@ static ssize_t wq_nice_store(struct device *dev, struct device_attribute *attr,
 		return -ENOMEM;
 
 	if (sscanf(buf, "%d", &attrs->nice) == 1 &&
-	    attrs->nice >= MIN_NICE && attrs->nice <= MAX_NICE)
+	    attrs->nice >= -20 && attrs->nice <= 19)
 		ret = apply_workqueue_attrs(wq, attrs);
 	else
 		ret = -EINVAL;
@@ -3800,16 +3655,6 @@ static void put_unbound_pool(struct worker_pool *pool)
 	WARN_ON(pool->nr_workers || pool->nr_idle);
 
 	spin_unlock_irq(&pool->lock);
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-	mutex_lock(&pool->manager_mutex);
-	if (!idr_is_empty(&pool->worker_idr))
-		pool->detach_completion = &detach_completion;
-=======
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
-=======
->>>>>>> parent of 3d7c9fc74bd (workqueue: async worker destruction)
 	mutex_unlock(&pool->manager_mutex);
 	mutex_unlock(&pool->manager_arb);
 
