@@ -1962,12 +1962,15 @@ static void destroy_worker(struct worker *worker)
 		pool->nr_workers--;
 	if (worker->flags & WORKER_IDLE)
 		pool->nr_idle--;
+<<<<<<< HEAD
 
 	/*
 	 * Once WORKER_DIE is set, the kworker may destroy itself at any
 	 * point.  Pin to ensure the task stays until we're done with it.
 	 */
 	get_task_struct(worker->task);
+=======
+>>>>>>> parent of f35de502709 (workqueue: destroy_worker() should destroy idle workers only)
 
 	/*
 	 * Once WORKER_DIE is set, the kworker may destroy itself at any
